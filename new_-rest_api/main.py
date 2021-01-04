@@ -1,6 +1,5 @@
 import os
 import json
-import pymongo
 from flask import Flask, jsonify
 from flask import request
 from pymongo import MongoClient
@@ -31,13 +30,28 @@ collection = db[mongo_collection_name]
 def insert_document():
     try:
         req_data = request.get_json()
-        name = req_data['name']
-        contact = req_data['contact']
-        collection.insert_one(req_data).inserted_id
+        logger.debug(req_data)
+        name = req_data.get('name', None)
+        contact = req_data.get('contact', None)
+        if name is None:
+            raise KeyError('name')
+        if contact is None:
+            raise KeyError('contact')
+        # name = req_data['name']
+        # contact = req_data['contact']
+        resp = collection.insert_one(req_data).inserted_id
+        logger.debug(resp)
         d = {"status": "success"}
         return json.dumps(d)
-    except Exception:
-        logger.warning("Please fill mandatory filed to inert data i.e name and contact")
+    except KeyError as e:
+        logger.error(f"mandatory field {e} is not found")
+        d = f"mandatory field {e} is not found"
+        return json.dumps({"message": d})
+
+    except Exception as e:
+        logger.error(f"Server faced an unknown problem:{e}")
+        d = f"Server faced an unknown problem:{e}"
+        return json.dumps({"message": d})
 
 
 @app.route("/u", methods=['POST'])
@@ -45,12 +59,19 @@ def update():
     try:
         req_data = request.get_json()
         where = req_data['where']
-        set = {"$set": req_data['set']}
+        set = req_data['set']
         collection.update_one(where, set)
         d = {'status': 200}
         return json.dumps(d)
-    except Exception:
-        logger.info("please check where and set clause")
+    except KeyError as e:
+        logger.error(f"please check {e} clause")
+        d = f"please check {e} clause"
+        return json.dumps({"message": d})
+
+    except Exception as e:
+        logger.error(f"Server faced an unknown problem:{e}")
+        d = f"Server faced an unknown problem:{e}"
+        return json.dumps({"message": d})
 
 
 @app.route("/d", methods=['POST'])
@@ -62,12 +83,19 @@ def delete():
 
         d = {"status": 200}
         return json.dumps(d)
-    except Exception:
-        logger.info("cannot delete without using delete clause")
+    except KeyError as e:
+        logger.error("cannot delete without using delete clause")
+        d = "cannot delete without using delete clause"
+        return json.dumps({"message": d})
+
+    except Exception as e:
+        logger.error(f"Server faced an unknown problem:{e}")
+        d = f"Server faced an unknown problem:{e}"
+        return json.dumps({"message": d})
 
 
-@app.route('/v', methods=["GET"])
-def findAll():
+@app.route('/view', methods=["GET"])
+def find_all():
     try:
         query = collection.find()
         output = {}
@@ -77,30 +105,21 @@ def findAll():
             output[i].pop('_id')
             i += 1
         return jsonify(output)
-    except Exception:
-        logger.error("error in finding all")
+    except Exception as e:
+        logger.error(f"error in finding all: {e}")
 
-    finally:
-        logger.error(("How to get this resolved"))
-
-
-@app.route("/find_one", methods=['POST'])
+@app.route('/find_one',methods=['POST'])
 def find_one():
-    for x in collection.find({}, {"name": request.get_json()['name'] , "contact": request.get_json()['contact']}):
-        x.pop("_id")
-        print(x)
-
-        return jsonify(x)
-
-@app.route("/sort",methods = ['POST'])
-def sorting():
-    x = collection.find({},{"name":request.get_json()['name']})
-    print(x)
-    # x.pop("_id")
-    # print(x)
-
-if __name__ == '__main__':
-    app.run(debug=True, port= 6001)
+    try:
+        id_1 = (collection.find({"name": request.get_json()['name']}))[0]
+        logger.debug(id_1)
+        id_1.pop('_id')
+        print(id_1)
+        return json.dumps(id_1)
+    except Exception as e:
+        logger.error(f"error in finding all: {e}")
 
 
 
+if __name__ == "__main__":
+    app.run(debug = True,  port=5001)
